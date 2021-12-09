@@ -1,0 +1,145 @@
+---
+# tasks file for first
+- name: tune sysctl parameters for VM
+  sysctl:
+    name: '{{ item.key }}'
+    value: '{{ item.value }}'
+    sysctl_set: yes
+   # state: present
+   # reload: yes
+   # ignoreerrors: yes
+  with_dict: '{{ sysctl_config }}'
+
+- name: Update/Upgrade
+  become: true
+  apt:
+    update_cache: yes
+    upgrade: yes
+     
+- name: ensure the jenkins apt repository key is installed
+  apt_key: url=https://pkg.jenkins.io/debian-stable/jenkins.io.key state=present
+  become: true
+
+- name: Update APT package manager repositories cache
+  become: true
+  apt:
+    update_cache: yes
+
+- name: ensure the repository is configured
+  apt_repository: repo="deb https://pkg.jenkins.io/debian-stable binary/" state=present
+  become: yes
+
+- name: Install Java/Jenkins/NGINX using Ansible
+  become: true
+  apt:
+    name: "{{ packages }}" 
+    state: present
+  with_items: "{{ packages }}"
+
+- name: ensure jenkins is installed
+  apt: name=jenkins update_cache=yes
+  become: true
+
+- name: ensure jenkins is running
+  service: name=jenkins state=started
+
+- name: Setup port to 8081
+  lineinfile:
+    dest: /etc/default/jenkins
+    regexp: '^HTTP_PORT='
+    line: "HTTP_PORT=8080"
+    
+- name: restart jenkins
+  become: true
+  service: name=jenkins state=restarted
+
+- name: Wait for Jenkins to start up before proceeding.
+  uri:
+    url: "http://localhost:8080/login"
+    method: GET
+    return_content: "yes"
+    timeout: 5
+    body_format: raw
+    follow_redirects: "no"
+    status_code: 200,403
+  register: result
+  until: (result.status == 403 or result.status == 200) and (result.content.find("Please wait while") == -1)
+  retries: 5
+  delay: 10
+  changed_when: false
+  check_mode: false
+
+#http://knowledgevault-sharing.blogspot.com/2018/03/set-up-jenkins-with-ansible.html
+
+- name: read admin pwd
+  shell: cat /var/lib/jenkins/secrets/initialAdminPassword
+  register: adminpwd
+
+- name: unlock and add admin user
+  jenkins_script:
+    script: |
+      import jenkins.model.*
+      import hudson.security.*
+      def instance = Jenkins.getInstance()
+      def hudsonRealm = new HudsonPrivateSecurityRealm(false)
+      hudsonRealm.createAccount('${user_log}', '${user_pwd}')
+      instance.setSecurityRealm(hudsonRealm)
+      def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
+      strategy.setAllowAnonymousRead(false)
+      instance.setAuthorizationStrategy(strategy)
+      instance.save()
+    args:
+      user_log: "{{ jenkins_user }}" #moi kredy dla vhoda
+      user_pwd: "{{ jenkins_pwd }}"
+    user: admin
+    password: "{{ adminpwd.stdout }}"
+  ignore_errors: True
+
+- name: complete setup wizard
+  jenkins_script:
+    script: |
+      import static jenkins.model.Jenkins.instance as jenkins
+      import jenkins.install.InstallState
+      if (!jenkins.installState.isSetupComplete()) {
+        InstallState.INITIAL_SETUP_COMPLETED.initializeState()
+      }
+    user: admin
+    password: "{{ adminpwd.stdout }}"
+  ignore_errors: True
+
+- name: install plugins
+  jenkins_plugin:
+    name: "{{ item }}"
+    state: latest
+    url_username: admin
+    url_password: "{{ adminpwd.stdout }}"
+  with_items: "{{ plugins }}"
+
+- name: Setup port to 8081
+  lineinfile:
+    dest: /etc/default/jenkins
+    regexp: '^HTTP_PORT='
+    line: "HTTP_PORT=8081"
+    
+- name: restart jenkins
+  become: true
+  service: name=jenkins state=restarted
+
+- name: delete default nginx site
+  become: true
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: copy nginx jenkins.conf
+  become: true
+  template:
+    src: jenkins.conf
+    dest: /etc/nginx/sites-enabled/jenkins.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: restart nginx
+  become: true
+  service: name=nginx state=restarted

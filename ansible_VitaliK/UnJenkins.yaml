@@ -1,0 +1,23 @@
+---
+- hosts: aws
+  tasks:
+    - name: Stop services
+      become: true
+      service:
+       name: "{{ item }}"
+       state: stopped
+       enabled: no
+      loop:
+        - nginx
+        - jenkins
+
+    - name: UNInstall Java/Jenkins/NGINX using Ansible
+      become: true
+      apt:
+        name: "{{ packages }}" # potom perenesi v main, a to kod govno
+        state: absent
+      vars:
+        packages:
+          - openjdk-11-jdk
+          - jenkins
+          - nginx

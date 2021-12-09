@@ -1,0 +1,6 @@
+---
+# defaults file for second
+packages:
+ - openjdk-11-jre-headless
+ - jenkins
+ - nginx

@@ -1,0 +1,41 @@
+---
+- hosts: aws
+# https://stackoverflow.com/questions/54932475/setting-multiple-values-in-sysctl-with-ansible
+# https://docs.ansible.com/ansible/latest/collections/ansible/posix/sysctl_module.html
+  tasks:
+    - name: Update APT package manager repositories cache
+      become: true
+      apt:
+        update_cache: yes
+
+    - name: ensure the jenkins apt repository key is installed
+      apt_key: url=https://pkg.jenkins.io/debian-stable/jenkins.io.key state=present
+      become: yes
+
+    - name: Add Jenkins repo
+      become: true
+      apt_repository:
+        repo: "deb https://pkg.jenkins.io/debian-stable binary/"
+        state: present
+        update_cache: true
+
+    - name: Install Java using Ansible
+      become: yes
+      apt:
+        name: "{{ packages }}"
+        state: present
+      vars:
+        packages:
+          - openjdk-11-jdk
+          - nginx
+          - jenkins
+
+    - name: ensure jenkins is installed
+      apt: name=jenkins update_cache=yes
+      become: yes
+
+    - name: restart jenkins
+      service: name=jenkins state=restarted
+
+    - name: ensure jenkins is running
+      service: name=jenkins state=started

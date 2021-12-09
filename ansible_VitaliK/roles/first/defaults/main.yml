@@ -1,0 +1,22 @@
+---
+# defaults file for first
+sysctl_config:
+  vm.min_free_kbytes:  99999 # default
+  fs.file-max:         2097152
+  net.core.somaxconn : 65000
+  vm.swappiness:       0
+  vm.nr_hugepages:     0
+
+packages:
+ - openjdk-11-jdk
+ - nginx
+ - ssl-cert
+ - jenkins
+
+jenkins_user: Jenkins-vitalikuts
+jenkins_pwd: jenkins
+
+plugins:
+  - github
+  - nodejs
+  - role-strategy

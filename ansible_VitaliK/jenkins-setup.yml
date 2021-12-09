@@ -1,0 +1,7 @@
+- name: first
+  hosts: aws
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: first

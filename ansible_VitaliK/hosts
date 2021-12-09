@@ -1,0 +1,5 @@
+[PROD]
+10.101.213.32
+
+[aws]
+34.248.225.184 ansible_ssh_user=ubuntu ansible_ssh_private_key_file=/Users/vitalik/Documents/Ireland.pem
